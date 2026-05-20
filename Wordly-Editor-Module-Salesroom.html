@@ -1,0 +1,1042 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Wordly — Drag &amp; Drop Subtitles + Dubbing</title>
+<!--
+  ============================================================================
+  WORDLY × VIDEO EDITOR — INTERACTIVE DEMO MODULE  (v4)
+  ----------------------------------------------------------------------------
+  v4 changes:
+   - Touch drag-and-drop support (works on iOS / Android)
+   - Timeline clips fill the full lane width
+   - Topbar mark: "Any Video Editor" (not Wordly) with film icon, neutral
+   - Folder header: "Wordly Exports" with Wordly speech-bubble mark
+   - Add-language dropdown: lang code abbreviations restored (DE, KO, ZH...)
+   - Captions wider + smaller on shrunk views; empty-state moved up
+  ----------------------------------------------------------------------------
+  Tweak: --wd-blue / --wd-green at top of .wd-editor-demo
+  Demo URL: data-demo-url attribute on the root <div>
+  ============================================================================
+-->
+
+<style>
+.wd-editor-demo {
+  --wd-blue: #2667FF;
+  --wd-blue-dark: #1F52CC;
+  --wd-green: #00D661;
+  --wd-text: #0F172A;
+  --wd-text-light: #64748B;
+  --wd-card-border: #E2E8F0;
+
+  --ed-bg: #1E1E1E;
+  --ed-panel: #2A2A2A;
+  --ed-panel-2: #232323;
+  --ed-border: #141414;
+  --ed-border-soft: #3A3A3A;
+  --ed-text: #C8C8C8;
+  --ed-text-bright: #E8E8E8;
+  --ed-text-dim: #888;
+  --ed-accent-soft: rgba(38,103,255,0.15);
+  --ed-drop-soft: rgba(38,103,255,0.18);
+
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0;
+  color: var(--wd-text);
+  position: relative;
+  box-sizing: border-box;
+}
+.wd-editor-demo *, .wd-editor-demo *::before, .wd-editor-demo *::after { box-sizing: border-box; }
+
+/* ----------- EDITOR FRAME ----------- */
+.wd-ed-frame {
+  background: var(--ed-bg);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(15,23,42,0.18);
+  position: relative;
+  border: 1px solid var(--ed-border);
+}
+
+/* Top bar */
+.wd-ed-topbar {
+  background: #181818;
+  border-bottom: 1px solid var(--ed-border);
+  padding: 8px 14px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  font-size: 11.5px;
+  color: var(--ed-text);
+}
+.wd-ed-topbar-menu { color: var(--ed-text); cursor: default; }
+
+/* Neutral "Any Video Editor" mark — replaces Wordly branding here */
+.wd-ed-app-name {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: #2C2C2C;
+  border: 1px solid #3A3A3A;
+  color: var(--ed-text-bright);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 11px 4px 9px;
+  border-radius: 4px;
+  letter-spacing: 0.01em;
+}
+.wd-ed-app-name svg { width: 13px; height: 13px; color: var(--ed-text); }
+
+/* ----------- 2-COLUMN BODY ----------- */
+.wd-ed-body {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  height: 320px;
+  border-bottom: 1px solid var(--ed-border);
+}
+
+/* === LEFT: file bin === */
+.wd-ed-left {
+  background: var(--ed-panel);
+  border-right: 1px solid var(--ed-border);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* Folder header — now with Wordly mark */
+.wd-ed-folder {
+  padding: 9px 12px;
+  font-size: 11.5px;
+  color: var(--ed-text-bright);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #1A1A1A;
+  border-bottom: 1px solid var(--ed-border);
+}
+
+/* Wordly app-icon mark: blue rounded square with white speech bubble */
+.wd-ed-wordly-mark {
+  width: 20px;
+  height: 20px;
+  background: var(--wd-blue);
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 1px 3px rgba(38,103,255,0.4);
+}
+.wd-ed-wordly-mark svg {
+  width: 100%;
+  height: 100%;
+  color: #fff;
+}
+
+.wd-ed-bin-list {
+  padding: 6px 4px;
+  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.wd-ed-bin-list::-webkit-scrollbar { width: 6px; }
+.wd-ed-bin-list::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
+
+.wd-ed-bin-section {
+  font-size: 9.5px;
+  color: var(--ed-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 8px 10px 4px;
+  font-weight: 600;
+}
+
+.wd-ed-bin-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  font-size: 11.5px;
+  color: var(--ed-text);
+  border-radius: 4px;
+  cursor: grab;
+  user-select: none;
+  position: relative;
+  transition: background 0.12s, box-shadow 0.2s;
+  margin: 1px 4px;
+  touch-action: none;  /* CRITICAL: prevents touchmove from being eaten by scroll */
+}
+.wd-ed-bin-item:hover { background: #333; }
+.wd-ed-bin-item.is-dragging { opacity: 0.4; cursor: grabbing; }
+.wd-ed-bin-item.is-used { opacity: 0.4; cursor: default; }
+.wd-ed-bin-item.is-used::after {
+  content: '✓';
+  margin-left: 4px;
+  color: var(--wd-green);
+  font-weight: 700;
+  font-size: 12px;
+}
+.wd-ed-bin-code {
+  font-size: 10px;
+  color: var(--ed-text-dim);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+/* PULSING DRAG HINT on first file */
+.wd-ed-bin-item.is-hint {
+  background: rgba(38,103,255,0.12);
+  box-shadow: 0 0 0 1px var(--wd-blue), 0 0 0 4px rgba(38,103,255,0.18);
+  animation: wd-hint-pulse 1.6s ease-in-out infinite;
+}
+@keyframes wd-hint-pulse {
+  0%, 100% { box-shadow: 0 0 0 1px var(--wd-blue), 0 0 0 4px rgba(38,103,255,0.10); }
+  50% { box-shadow: 0 0 0 1px var(--wd-blue), 0 0 0 8px rgba(38,103,255,0.22); }
+}
+.wd-ed-bin-item.is-hint::before {
+  content: 'DRAG →';
+  position: absolute;
+  right: -64px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--wd-blue);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 10px;
+  letter-spacing: 0.06em;
+  box-shadow: 0 2px 8px rgba(38,103,255,0.4);
+  pointer-events: none;
+  z-index: 5;
+  animation: wd-arrow-bob 1.6s ease-in-out infinite;
+}
+@keyframes wd-arrow-bob {
+  0%, 100% { transform: translateY(-50%) translateX(0); }
+  50% { transform: translateY(-50%) translateX(4px); }
+}
+
+.wd-ed-bin-icon {
+  width: 24px; height: 24px;
+  border-radius: 3px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  font-size: 8.5px; font-weight: 700; color: #fff;
+}
+.wd-ed-bin-icon.icon-srt { background: #6B4A8A; }
+.wd-ed-bin-icon.icon-mp3 { background: #2D5F8E; }
+
+.wd-ed-bin-name {
+  flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* + Add language footer */
+.wd-ed-add-lang {
+  padding: 8px;
+  border-top: 1px solid var(--ed-border);
+  background: #1F1F1F;
+  flex-shrink: 0;
+  position: relative;
+}
+.wd-ed-add-btn {
+  width: 100%;
+  background: transparent;
+  border: 1px dashed #4A4A4A;
+  border-radius: 4px;
+  padding: 8px 10px;
+  color: var(--ed-text);
+  font-size: 11.5px;
+  font-family: inherit;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  gap: 6px;
+  transition: all 0.2s;
+}
+.wd-ed-add-btn:hover {
+  border-color: var(--wd-blue);
+  background: var(--ed-accent-soft);
+  color: var(--ed-text-bright);
+}
+.wd-ed-add-dropdown {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 8px; right: 8px;
+  background: #1A1A1A;
+  border: 1px solid var(--ed-border-soft);
+  border-radius: 6px;
+  box-shadow: 0 -8px 24px rgba(0,0,0,0.5);
+  z-index: 30;
+  display: none;
+  overflow: hidden;
+}
+.wd-ed-add-dropdown.is-open { display: flex; flex-direction: column; }
+
+.wd-ed-lang-list {
+  max-height: 200px;
+  overflow-y: auto;
+}
+.wd-ed-lang-list::-webkit-scrollbar { width: 6px; }
+.wd-ed-lang-list::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
+
+.wd-ed-lang-opt {
+  padding: 9px 12px;
+  font-size: 12px;
+  color: var(--ed-text);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.wd-ed-lang-opt:hover { background: var(--ed-accent-soft); color: var(--ed-text-bright); }
+.wd-ed-lang-opt-flag { font-size: 13px; }
+.wd-ed-lang-opt-name { flex: 1; }
+.wd-ed-lang-opt-code {
+  font-size: 10px;
+  color: var(--ed-text-dim);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.wd-ed-lang-opt:hover .wd-ed-lang-opt-code { color: var(--ed-text-bright); }
+
+/* "& dozens more" — fixed bottom row */
+.wd-ed-lang-many {
+  padding: 11px 12px;
+  font-size: 12px;
+  color: var(--wd-blue);
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  background: #15243F;
+  border-top: 1px solid var(--ed-border-soft);
+  flex-shrink: 0;
+}
+.wd-ed-lang-many:hover { background: #1B3266; color: #fff; }
+.wd-ed-lang-many::after { content: '→'; margin-left: auto; font-weight: 700; }
+
+/* === CENTER: video preview === */
+.wd-ed-center {
+  background: #0E0E0E;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  position: relative;
+}
+.wd-ed-preview-stage {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  position: relative;
+  overflow: hidden;
+}
+
+.wd-ed-video {
+  position: relative;
+  background: radial-gradient(ellipse at 50% 40%, #2A3550 0%, #0F1A30 70%);
+  border-radius: 4px;
+  width: 100%;
+  max-width: 480px;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.6);
+  border: 1px solid #000;
+}
+
+/* "YOUR VIDEO HERE" — centered on bigger screens */
+.wd-ed-video-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.wd-ed-video-empty-icon {
+  width: 44px;
+  height: 44px;
+  margin-bottom: 10px;
+  border: 2px solid rgba(255,255,255,0.18);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  color: rgba(255,255,255,0.35);
+}
+.wd-ed-video-empty-icon svg { width: 22px; height: 22px; }
+.wd-ed-video-empty-text {
+  font-family: 'Inter', sans-serif;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: rgba(255,255,255,0.55);
+  text-transform: uppercase;
+  text-align: center;
+}
+.wd-ed-video-empty-sub {
+  margin-top: 5px;
+  font-size: 10px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.32);
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+
+.wd-ed-video-label {
+  position: absolute;
+  top: 10px; left: 10px;
+  font-size: 9.5px;
+  color: rgba(255,255,255,0.4);
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  letter-spacing: 0.04em;
+  z-index: 2;
+}
+
+/* Caption overlay — wider, no left bar, no badge */
+.wd-ed-caption {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 96%;
+  max-width: 96%;
+  background: rgba(0,0,0,0.82);
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.4;
+  padding: 8px 14px;
+  border-radius: 4px;
+  text-align: center;
+  transition: opacity 0.5s ease, transform 0.5s ease;
+  z-index: 3;
+}
+.wd-ed-caption.is-changing {
+  opacity: 0;
+  transform: translateX(-50%) translateY(6px);
+}
+
+/* Drop overlay on video preview */
+.wd-ed-video-dropzone {
+  position: absolute; inset: 0;
+  border: 2px dashed transparent;
+  border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: none;
+  transition: all 0.2s;
+  z-index: 5;
+}
+.wd-ed-video.is-drop-target .wd-ed-video-dropzone {
+  border-color: var(--wd-blue);
+  background: var(--ed-drop-soft);
+}
+.wd-ed-video.is-drop-target .wd-ed-video-dropzone::after {
+  content: 'Drop to apply'; color: #fff; font-size: 13px; font-weight: 600;
+  background: var(--wd-blue);
+  padding: 6px 14px; border-radius: 20px;
+  box-shadow: 0 4px 14px rgba(38,103,255,0.5);
+}
+
+/* ----------- TIMELINE ----------- */
+.wd-ed-timeline {
+  background: var(--ed-panel-2);
+  padding: 8px 0 10px;
+}
+.wd-ed-timeline-ruler {
+  height: 12px;
+  border-bottom: 1px solid var(--ed-border);
+  background:
+    repeating-linear-gradient(90deg, transparent 0, transparent 39px, #444 39px, #444 40px),
+    #1A1A1A;
+  margin: 0 12px 6px;
+}
+.wd-ed-track-row {
+  display: flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 12px;
+  margin-bottom: 3px;
+}
+.wd-ed-track-row:last-child { margin-bottom: 0; }
+.wd-ed-track-label {
+  width: 38px;
+  flex-shrink: 0;
+  font-size: 9.5px;
+  color: var(--ed-text);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.wd-ed-track-lane {
+  flex: 1;
+  height: 22px;
+  background: #1A1A1A;
+  border-radius: 2px;
+  position: relative;
+  border: 1px solid #141414;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+  overflow: hidden;
+}
+.wd-ed-track-lane.is-empty.is-hint {
+  border: 1px dashed var(--wd-blue);
+  background: rgba(38,103,255,0.08);
+  animation: wd-track-pulse 2s ease-in-out infinite;
+}
+@keyframes wd-track-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(38,103,255,0.4); }
+  50% { box-shadow: 0 0 0 4px rgba(38,103,255,0.15); }
+}
+.wd-ed-track-lane.is-drop-target {
+  background: var(--ed-drop-soft);
+  border: 1px solid var(--wd-blue);
+  box-shadow: 0 0 0 1px var(--wd-blue);
+  animation: none;
+}
+
+/* CLIPS — full-width fill */
+.wd-ed-track-clip {
+  position: absolute;
+  top: 1px; bottom: 1px;
+  left: 1px; right: 1px;
+  border-radius: 2px;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  font-size: 10px;
+  color: #fff;
+  font-weight: 500;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.wd-ed-track-clip.clip-video {
+  background: linear-gradient(90deg, #4A6B8A 0%, #5A7FA0 50%, #4A6B8A 100%);
+}
+.wd-ed-track-clip.clip-caption {
+  background: linear-gradient(90deg, #6B4A8A 0%, #8B6AAA 50%, #6B4A8A 100%);
+}
+.wd-ed-track-clip.clip-dub {
+  background: linear-gradient(90deg, #00A050 0%, #00D661 50%, #00A050 100%);
+  font-weight: 600;
+}
+.wd-ed-track-clip-flag { margin-right: 6px; font-size: 11px; }
+.wd-ed-track-clip-new { animation: wd-clip-pop 0.6s ease; }
+@keyframes wd-clip-pop {
+  0% { transform: scaleY(0.4); opacity: 0; }
+  50% { transform: scaleY(1.1); }
+  100% { transform: scaleY(1); opacity: 1; }
+}
+
+.wd-ed-track-empty-hint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  font-size: 10px;
+  color: var(--wd-blue);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  pointer-events: none;
+}
+.wd-ed-track-empty-hint::before {
+  content: '←';
+  margin-right: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--wd-blue);
+}
+
+/* ============================================================
+   TOUCH-DRAG GHOST
+============================================================ */
+.wd-ed-touch-ghost {
+  position: fixed;
+  pointer-events: none;
+  z-index: 9999;
+  background: var(--ed-panel);
+  border: 1px solid var(--wd-blue);
+  border-radius: 4px;
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  color: var(--ed-text-bright);
+  font-family: 'Inter', sans-serif;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.5), 0 0 0 1px rgba(38,103,255,0.4);
+  transform: translate(-50%, -50%) scale(1.02);
+  white-space: nowrap;
+}
+.wd-ed-touch-ghost .wd-ed-bin-icon {
+  width: 22px; height: 22px;
+  font-size: 8px;
+}
+
+/* ----------- RESPONSIVE ----------- */
+@media (max-width: 720px) {
+  .wd-ed-body { grid-template-columns: 200px 1fr; height: 280px; }
+  .wd-ed-bin-name { font-size: 10.5px; }
+  .wd-ed-bin-item.is-hint::before { right: -52px; padding: 2px 6px; font-size: 8.5px; }
+  .wd-ed-video-empty-text { font-size: 13px; letter-spacing: 0.12em; }
+  .wd-ed-video-empty-sub { font-size: 9px; }
+  .wd-ed-video-empty-icon { width: 36px; height: 36px; }
+  .wd-ed-video-empty-icon svg { width: 18px; height: 18px; }
+  .wd-ed-caption { font-size: 11.5px; padding: 6px 10px; }
+  .wd-ed-modal { padding: 22px 22px 20px; }
+  .wd-ed-modal-title { font-size: 17px; }
+  .wd-ed-modal-body { font-size: 13px; }
+  .wd-ed-app-name { font-size: 10px; padding: 3px 8px; gap: 5px; }
+  .wd-ed-app-name svg { width: 11px; height: 11px; }
+}
+@media (max-width: 480px) {
+  .wd-ed-caption { font-size: 10.5px; line-height: 1.35; padding: 5px 9px; }
+  .wd-ed-video-empty-text { font-size: 11px; letter-spacing: 0.1em; }
+}
+</style>
+
+<!-- ==================== MODULE MARKUP ==================== -->
+<div class="wd-editor-demo" data-demo-url="https://offers.wordly.ai/ai-interpretation-demo-request">
+
+  <div class="wd-ed-frame">
+
+    <!-- Top bar: File · Edit · Export + neutral "Any Video Editor" mark -->
+    <div class="wd-ed-topbar">
+      <span class="wd-ed-topbar-menu">File</span>
+      <span class="wd-ed-topbar-menu">Edit</span>
+      <span class="wd-ed-topbar-menu">Export</span>
+      <span class="wd-ed-app-name">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+        Your Video Editor
+      </span>
+    </div>
+
+    <!-- 2-column body -->
+    <div class="wd-ed-body">
+
+      <!-- LEFT: file bin -->
+      <div class="wd-ed-left">
+        <div class="wd-ed-folder">
+          <span class="wd-ed-wordly-mark" aria-hidden="true">
+            <svg viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M209.484 96.3758L215.385 73.8462H205.071C189.038 73.8462 174.997 84.7073 170.928 100.252L158.115 149.349L139.402 73.8462H116.196L97.5633 149.066L84.8122 100.272C80.7431 84.7275 66.7228 73.8664 50.6681 73.8664H40.6162L46.5185 96.396H50.6681C56.4897 96.396 61.5861 100.333 63.0566 105.985L82.838 182.153H108.945L127.799 109.478L146.655 182.153H172.761L192.684 105.985C194.154 100.353 199.251 96.396 205.071 96.396H209.484V96.3758Z" fill="currentColor"/></svg>
+          </span>
+          Wordly Exports
+        </div>
+
+        <div class="wd-ed-bin-list">
+
+          <div class="wd-ed-bin-section">Captions (.srt)</div>
+
+          <div class="wd-ed-bin-item is-hint" draggable="true" data-type="srt" data-lang="es" data-flag="🇪🇸" data-label="Spanish">
+            <div class="wd-ed-bin-icon icon-srt">SRT</div>
+            <div class="wd-ed-bin-name">Captions_es.srt</div>
+            <div class="wd-ed-bin-code">ES</div>
+          </div>
+
+          <div class="wd-ed-bin-item" draggable="true" data-type="srt" data-lang="fr" data-flag="🇫🇷" data-label="French">
+            <div class="wd-ed-bin-icon icon-srt">SRT</div>
+            <div class="wd-ed-bin-name">Captions_fr.srt</div>
+            <div class="wd-ed-bin-code">FR</div>
+          </div>
+
+          <div class="wd-ed-bin-item" draggable="true" data-type="srt" data-lang="ja" data-flag="🇯🇵" data-label="Japanese">
+            <div class="wd-ed-bin-icon icon-srt">SRT</div>
+            <div class="wd-ed-bin-name">Captions_ja.srt</div>
+            <div class="wd-ed-bin-code">JA</div>
+          </div>
+
+          <div class="wd-ed-bin-section">Dubbed Audio (.mp3)</div>
+
+          <div class="wd-ed-bin-item" draggable="true" data-type="mp3" data-lang="es" data-flag="🇪🇸" data-label="Spanish">
+            <div class="wd-ed-bin-icon icon-mp3">MP3</div>
+            <div class="wd-ed-bin-name">VoiceTrack_es.mp3</div>
+            <div class="wd-ed-bin-code">ES</div>
+          </div>
+
+          <div class="wd-ed-bin-item" draggable="true" data-type="mp3" data-lang="ja" data-flag="🇯🇵" data-label="Japanese">
+            <div class="wd-ed-bin-icon icon-mp3">MP3</div>
+            <div class="wd-ed-bin-name">VoiceTrack_ja.mp3</div>
+            <div class="wd-ed-bin-code">JA</div>
+          </div>
+
+        </div>
+
+        <div class="wd-ed-add-lang">
+          <button type="button" class="wd-ed-add-btn" data-action="open-lang">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add language
+          </button>
+          <div class="wd-ed-add-dropdown" data-lang-dropdown>
+            <div class="wd-ed-lang-list">
+              <div class="wd-ed-lang-opt" data-extra><span class="wd-ed-lang-opt-name">German</span><span class="wd-ed-lang-opt-code">DE</span></div>
+              <div class="wd-ed-lang-opt" data-extra><span class="wd-ed-lang-opt-name">Korean</span><span class="wd-ed-lang-opt-code">KO</span></div>
+              <div class="wd-ed-lang-opt" data-extra><span class="wd-ed-lang-opt-name">Chinese</span><span class="wd-ed-lang-opt-code">ZH</span></div>
+              <div class="wd-ed-lang-opt" data-extra><span class="wd-ed-lang-opt-name">Portuguese</span><span class="wd-ed-lang-opt-code">PT</span></div>
+              <div class="wd-ed-lang-opt" data-extra><span class="wd-ed-lang-opt-name">Italian</span><span class="wd-ed-lang-opt-code">IT</span></div>
+              <div class="wd-ed-lang-opt" data-extra><span class="wd-ed-lang-opt-name">Arabic</span><span class="wd-ed-lang-opt-code">AR</span></div>
+              <div class="wd-ed-lang-opt" data-extra><span class="wd-ed-lang-opt-name">Hindi</span><span class="wd-ed-lang-opt-code">HI</span></div>
+              <div class="wd-ed-lang-opt" data-extra><span class="wd-ed-lang-opt-name">Vietnamese</span><span class="wd-ed-lang-opt-code">VI</span></div>
+            </div>
+            <div class="wd-ed-lang-many" data-extra>&amp; dozens more</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CENTER: video preview -->
+      <div class="wd-ed-center">
+        <div class="wd-ed-preview-stage">
+          <div class="wd-ed-video" data-video-drop>
+            <div class="wd-ed-video-label">Preview</div>
+            <div class="wd-ed-video-empty">
+              <div class="wd-ed-video-empty-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polygon points="23 7 16 12 23 17 23 7"/>
+                  <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+                </svg>
+              </div>
+              <div class="wd-ed-video-empty-text">Your Video Here</div>
+              <div class="wd-ed-video-empty-sub">Live captions or post-event subtitles</div>
+            </div>
+            <div class="wd-ed-caption" data-caption>
+              <span data-caption-text>Welcome to the keynote — let's break the language barrier.</span>
+            </div>
+            <div class="wd-ed-video-dropzone"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- TIMELINE -->
+    <div class="wd-ed-timeline">
+      <div class="wd-ed-timeline-ruler"></div>
+
+      <div class="wd-ed-track-row">
+        <div class="wd-ed-track-label">V1</div>
+        <div class="wd-ed-track-lane">
+          <div class="wd-ed-track-clip clip-video">Conference_Keynote.mp4</div>
+        </div>
+      </div>
+
+      <div class="wd-ed-track-row">
+        <div class="wd-ed-track-label">CC</div>
+        <div class="wd-ed-track-lane is-empty is-hint" data-track="caption">
+          <div class="wd-ed-track-empty-hint">Drop SRT here to swap caption language</div>
+        </div>
+      </div>
+
+      <div class="wd-ed-track-row">
+        <div class="wd-ed-track-label">A2</div>
+        <div class="wd-ed-track-lane is-empty" data-track="dub">
+          <div class="wd-ed-track-empty-hint">Drop MP3 here to add a dubbed voice</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CENTERED MODAL -->
+
+
+  </div>
+
+</div>
+
+<script>
+(function() {
+  const root = document.querySelector('.wd-editor-demo');
+  if (!root) return;
+  const DEMO_URL = root.getAttribute('data-demo-url') || 'https://offers.wordly.ai/ai-interpretation-demo-request';
+
+  const SCRIPT = {
+    en: [
+      "Welcome to the keynote — let's break the language barrier.",
+      "Real-time translation now reaches every seat in the room.",
+      "Subtitles can be exported the moment the session ends.",
+      "Live or post-event — same Wordly engine, same accuracy."
+    ],
+    es: [
+      "Bienvenidos a la conferencia — rompamos la barrera del idioma.",
+      "La traducción en tiempo real llega a cada asiento de la sala.",
+      "Los subtítulos pueden exportarse en cuanto termina la sesión.",
+      "En vivo o después — el mismo motor Wordly, la misma precisión."
+    ],
+    fr: [
+      "Bienvenue au discours — brisons la barrière de la langue.",
+      "La traduction en temps réel atteint chaque siège de la salle.",
+      "Les sous-titres peuvent être exportés dès la fin de la session.",
+      "En direct ou après — même moteur Wordly, même précision."
+    ],
+    ja: [
+      "基調講演へようこそ ― 言語の壁を越えていきましょう。",
+      "リアルタイム翻訳が会場のすべての座席に届きます。",
+      "セッション終了と同時に字幕をエクスポートできます。",
+      "ライブでも事後でも ― 同じWordlyエンジン、同じ精度。"
+    ]
+  };
+
+  const LANG_LABELS = {
+    en: { code: 'EN', name: 'English', flag: '🇺🇸' },
+    es: { code: 'ES', name: 'Spanish', flag: '🇪🇸' },
+    fr: { code: 'FR', name: 'French', flag: '🇫🇷' },
+    ja: { code: 'JA', name: 'Japanese', flag: '🇯🇵' }
+  };
+
+  const state = {
+    captionLang: 'en',
+    captionIdx: 0,
+    paused: false
+  };
+
+  // Refs
+  const captionEl = root.querySelector('[data-caption]');
+  const captionTextEl = root.querySelector('[data-caption-text]');
+  const captionTrack = root.querySelector('[data-track="caption"]');
+  const dubTrack = root.querySelector('[data-track="dub"]');
+  const videoEl = root.querySelector('[data-video-drop]');
+  const langDropdown = root.querySelector('[data-lang-dropdown]');
+  const langBtn = root.querySelector('[data-action="open-lang"]');
+
+  // ----- Caption rotator -----
+  const CAPTION_DWELL = 5500;
+
+  function rotateCaption() {
+    if (state.paused) return;
+    const lines = SCRIPT[state.captionLang] || SCRIPT.en;
+    const next = lines[state.captionIdx % lines.length];
+    captionEl.classList.add('is-changing');
+    setTimeout(() => {
+      if (state.paused) return;
+      captionTextEl.textContent = next;
+      captionEl.classList.remove('is-changing');
+      state.captionIdx++;
+    }, 280);
+  }
+  rotateCaption();
+  let captionTimer = setInterval(rotateCaption, CAPTION_DWELL);
+
+  function pauseDemo() {
+    state.paused = true;
+    clearInterval(captionTimer);
+  }
+  function resumeDemo() {
+    if (!state.paused) return;
+    state.paused = false;
+    captionTimer = setInterval(rotateCaption, CAPTION_DWELL);
+  }
+
+  function applyCaption(lang) {
+    if (!SCRIPT[lang]) return;
+    state.captionLang = lang;
+    state.captionIdx = 0;
+
+    let clip = captionTrack.querySelector('.wd-ed-track-clip');
+    captionTrack.classList.remove('is-empty', 'is-hint');
+    const hint = captionTrack.querySelector('.wd-ed-track-empty-hint');
+    if (hint) hint.remove();
+    if (!clip) {
+      clip = document.createElement('div');
+      clip.className = 'wd-ed-track-clip clip-caption';
+      captionTrack.appendChild(clip);
+    }
+    void clip.offsetWidth;
+    clip.classList.add('wd-ed-track-clip-new');
+    const meta = LANG_LABELS[lang];
+    clip.innerHTML = '<span class="wd-ed-track-clip-flag">' + meta.flag + '</span>Captions_' + lang + '.srt';
+
+    rotateCaption();
+  }
+
+  function applyDub(lang) {
+    if (!LANG_LABELS[lang]) return;
+    const meta = LANG_LABELS[lang];
+
+    let clip = dubTrack.querySelector('.wd-ed-track-clip');
+    dubTrack.classList.remove('is-empty', 'is-hint');
+    const hint = dubTrack.querySelector('.wd-ed-track-empty-hint');
+    if (hint) hint.remove();
+    if (!clip) {
+      clip = document.createElement('div');
+      clip.className = 'wd-ed-track-clip clip-dub';
+      dubTrack.appendChild(clip);
+    }
+    void clip.offsetWidth;
+    clip.classList.add('wd-ed-track-clip-new');
+    clip.innerHTML = '<span class="wd-ed-track-clip-flag">' + meta.flag + '</span>VoiceTrack_' + lang + '.mp3';
+  }
+
+  // ===========================================================
+  // DESKTOP DRAG-AND-DROP (HTML5)
+  // ===========================================================
+  const draggables = root.querySelectorAll('.wd-ed-bin-item[draggable="true"]');
+  draggables.forEach(el => {
+    el.addEventListener('dragstart', e => {
+      el.classList.add('is-dragging');
+      e.dataTransfer.setData('application/wordly', JSON.stringify({
+        type: el.dataset.type, lang: el.dataset.lang
+      }));
+      e.dataTransfer.effectAllowed = 'copy';
+    });
+    el.addEventListener('dragend', () => {
+      el.classList.remove('is-dragging');
+      [captionTrack, dubTrack, videoEl].forEach(t => t.classList.remove('is-drop-target'));
+    });
+  });
+
+  function readPayload(e) {
+    try { return JSON.parse(e.dataTransfer.getData('application/wordly') || 'null'); }
+    catch(_) { return null; }
+  }
+  function setupDropTarget(targetEl, accept) {
+    targetEl.addEventListener('dragover', e => {
+      const dragging = root.querySelector('.is-dragging');
+      const type = dragging ? dragging.dataset.type : null;
+      if (!type || !accept(type)) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      targetEl.classList.add('is-drop-target');
+    });
+    targetEl.addEventListener('dragleave', e => {
+      if (!targetEl.contains(e.relatedTarget)) targetEl.classList.remove('is-drop-target');
+    });
+    targetEl.addEventListener('drop', e => {
+      e.preventDefault();
+      targetEl.classList.remove('is-drop-target');
+      const payload = readPayload(e);
+      if (!payload || !accept(payload.type)) return;
+      handleDrop(payload);
+    });
+  }
+  setupDropTarget(captionTrack, t => t === 'srt');
+  setupDropTarget(dubTrack, t => t === 'mp3');
+  setupDropTarget(videoEl, t => t === 'srt' || t === 'mp3');
+
+  function handleDrop(payload) {
+    if (payload.type === 'srt') applyCaption(payload.lang);
+    else if (payload.type === 'mp3') applyDub(payload.lang);
+    const fileEl = root.querySelector(
+      '.wd-ed-bin-item[data-type="' + payload.type + '"][data-lang="' + payload.lang + '"]'
+    );
+    if (fileEl) fileEl.classList.add('is-used');
+  }
+
+  // ===========================================================
+  // TOUCH DRAG-AND-DROP (mobile)
+  // ===========================================================
+  function acceptsType(target, type) {
+    if (!target) return false;
+    if (target.matches('[data-track="caption"]') || target.closest('[data-track="caption"]')) return type === 'srt';
+    if (target.matches('[data-track="dub"]') || target.closest('[data-track="dub"]')) return type === 'mp3';
+    if (target.matches('[data-video-drop]') || target.closest('[data-video-drop]')) return type === 'srt' || type === 'mp3';
+    return false;
+  }
+  function findDropTarget(x, y, type) {
+    const under = document.elementFromPoint(x, y);
+    if (!under) return null;
+    if (type === 'srt') {
+      const t = under.closest('[data-track="caption"]');
+      if (t) return t;
+    }
+    if (type === 'mp3') {
+      const t = under.closest('[data-track="dub"]');
+      if (t) return t;
+    }
+    const v = under.closest('[data-video-drop]');
+    if (v && (type === 'srt' || type === 'mp3')) return v;
+    return null;
+  }
+
+  draggables.forEach(item => {
+    let ghost = null;
+    let activated = false;
+    let startX = 0, startY = 0;
+    let lastTarget = null;
+    let usedFile = item.classList.contains('is-used');
+
+    item.addEventListener('touchstart', e => {
+      if (e.touches.length !== 1) return;
+      if (item.classList.contains('is-used')) return;
+      const t = e.touches[0];
+      startX = t.clientX;
+      startY = t.clientY;
+      activated = false;
+      lastTarget = null;
+    }, { passive: true });
+
+    item.addEventListener('touchmove', e => {
+      if (e.touches.length !== 1) return;
+      if (item.classList.contains('is-used')) return;
+      const t = e.touches[0];
+      const dx = Math.abs(t.clientX - startX);
+      const dy = Math.abs(t.clientY - startY);
+
+      if (!activated && (dx > 6 || dy > 6)) {
+        // Activate drag
+        activated = true;
+        item.classList.add('is-dragging');
+        ghost = document.createElement('div');
+        ghost.className = 'wd-ed-touch-ghost';
+        const iconClone = item.querySelector('.wd-ed-bin-icon').cloneNode(true);
+        const nameClone = document.createElement('div');
+        nameClone.textContent = item.querySelector('.wd-ed-bin-name').textContent;
+        ghost.appendChild(iconClone);
+        ghost.appendChild(nameClone);
+        document.body.appendChild(ghost);
+      }
+
+      if (activated && ghost) {
+        e.preventDefault();   // stops scroll while dragging
+        ghost.style.left = t.clientX + 'px';
+        ghost.style.top = t.clientY + 'px';
+
+        // Hide ghost briefly to find what's under
+        ghost.style.display = 'none';
+        const target = findDropTarget(t.clientX, t.clientY, item.dataset.type);
+        ghost.style.display = '';
+
+        // Update highlights
+        [captionTrack, dubTrack, videoEl].forEach(el => el.classList.remove('is-drop-target'));
+        if (target) {
+          target.classList.add('is-drop-target');
+          lastTarget = target;
+        } else {
+          lastTarget = null;
+        }
+      }
+    }, { passive: false });
+
+    function endTouch() {
+      if (ghost) { ghost.remove(); ghost = null; }
+      item.classList.remove('is-dragging');
+      [captionTrack, dubTrack, videoEl].forEach(el => el.classList.remove('is-drop-target'));
+      if (activated && lastTarget) {
+        handleDrop({ type: item.dataset.type, lang: item.dataset.lang });
+      }
+      activated = false;
+      lastTarget = null;
+    }
+    item.addEventListener('touchend', endTouch);
+    item.addEventListener('touchcancel', endTouch);
+  });
+
+  // ----- "Add language" dropdown -----
+  langBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    langDropdown.classList.toggle('is-open');
+  });
+  document.addEventListener('click', e => {
+    if (!langDropdown.contains(e.target) && e.target !== langBtn && !langBtn.contains(e.target)) {
+      langDropdown.classList.remove('is-open');
+    }
+  });
+})();
+</script>
+</body>
+</html>
